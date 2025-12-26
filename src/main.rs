@@ -1,32 +1,7 @@
-use blockchain::{balances, system};
-
-impl system::Config for Runtime {
-    type AccountId = String;
-    type BlockNumber = u32;
-    type Nonce = u32;
-}
-
-impl balances::Config for Runtime {
-    type Balance = u128;
-}
-
-#[derive(Debug)]
-pub struct Runtime {
-    system: system::Pallet<Runtime>,
-    balances: balances::Pallet<Runtime>,
-}
-
-impl Runtime {
-    fn new() -> Self {
-        Self {
-            system: system::Pallet::new(),
-            balances: balances::Pallet::new(),
-        }
-    }
-}
+use blockchain::{balances, proof_of_existence, runtime, support, types};
 
 fn main() {
-    let mut runtime = Runtime::new();
+    let mut runtime = runtime::Runtime::new();
 
     let ahmed = "Ahmed".to_string();
     let mohamed = "Mohamed".to_string();
@@ -34,22 +9,55 @@ fn main() {
 
     runtime.balances.set_balance(&ahmed, 100);
 
-    runtime.system.inc_block_number();
-    assert_eq!(runtime.system.block_number(), 1);
+    let block_1 = types::Block {
+        header: support::Header { block_number: 1 },
+        extrinsics: vec![
+            support::Extrinsic {
+                caller: ahmed.clone(),
+                call: runtime::RuntimeCall::Balances(balances::Call::Transfer {
+                    to: mohamed.clone(),
+                    amount: 30,
+                }),
+            },
+            support::Extrinsic {
+                caller: ahmed.clone(),
+                call: runtime::RuntimeCall::Balances(balances::Call::Transfer {
+                    to: abdallah.clone(),
+                    amount: 20,
+                }),
+            },
+        ],
+    };
 
-    runtime.system.inc_nonce(&ahmed);
+    runtime
+        .execute_block(block_1)
+        .expect("wrong block execution");
 
-    let _ = runtime
-        .balances
-        .transfer(&ahmed, &mohamed, 30)
-        .map_err(|e| println!("Error: {:?}", e));
+    let block_2 = types::Block {
+        header: support::Header { block_number: 2 },
+        extrinsics: vec![
+            support::Extrinsic {
+                caller: ahmed.clone(),
+                call: runtime::RuntimeCall::ProofOfExistence(
+                    proof_of_existence::Call::CreateClaim {
+                        content: "my_document",
+                    },
+                ),
+            },
+            support::Extrinsic {
+                caller: mohamed.clone(),
+                call: runtime::RuntimeCall::ProofOfExistence(
+                    proof_of_existence::Call::CreateClaim {
+                        content: "mohamed's document",
+                    },
+                ),
+            },
+        ],
+    };
 
-    runtime.system.inc_nonce(&ahmed);
-
-    let _ = runtime
-        .balances
-        .transfer(&ahmed, &abdallah, 20)
-        .map_err(|e| println!("Error: {:?}", e));
+    runtime
+        .execute_block(block_2)
+        .expect("wrong block execution");
 
     println!("Runtime: {:#?}", runtime)
 }
